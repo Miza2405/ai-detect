@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriSight AI — Forensik Deteksi Video Generatif</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #030712;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.12), transparent 50%),
+        linear-gradient(to right, rgba(30, 41, 59, 0.25) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(30, 41, 59, 0.25) 1px, transparent 1px);
+      background-size: 100% 100%, 32px 32px, 32px 32px;
+    }
+
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    @keyframes scanline {
+      0% { top: 0%; opacity: 0.2; }
+      50% { opacity: 0.9; }
+      100% { top: 100%; opacity: 0.2; }
+    }
+
+    .scanner-beam {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #06b6d4, #22d3ee, #06b6d4, transparent);
+      box-shadow: 0 0 15px #06b6d4, 0 0 30px #06b6d4;
+      animation: scanline 2.5s linear infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.85); opacity: 0.8; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+
+    .radar-ring {
+      animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <header class="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg tracking-tight text-white">VeriSight <span class="text-cyan-400">AI</span></h1>
+          <p class="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Diffusion & Deepfake Forensic Engine</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-mono">
+        <span id="apiDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="apiStatusText" class="text-slate-300">API: 127.0.0.1:8000</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl w-full mx-auto px-4 sm:px-6 py-10 flex-grow">
+
+    <!-- STAGE 1: UPLOAD -->
+    <section id="setupScreen" class="space-y-6">
+      <div class="text-center max-w-2xl mx-auto space-y-2">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Deteksi Video AI Generatif & Deepfake</h2>
+        <p class="text-sm text-slate-400">
+          Analisis multi-lapis menggunakan Ensemble Swin Transformer, Multi-Crop Rasio Asli, dan Optical Flow Motion Morphing.
+        </p>
+      </div>
+
+      <div id="dropZone" class="relative group border-2 border-dashed border-slate-700 hover:border-cyan-500/70 bg-slate-900/50 hover:bg-slate-900/80 rounded-2xl p-8 sm:p-12 text-center transition-all overflow-hidden">
+        <input type="file" id="videoInput" accept="video/*,.mp4,.webm,.mov,.avi,.mkv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+        
+        <div id="uploadPrompt" class="space-y-4 pointer-events-none">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-800/90 border border-slate-700 group-hover:border-cyan-500/50 flex items-center justify-center text-cyan-400 transition-transform group-hover:scale-105">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-base font-semibold text-slate-200">Klik untuk memilih video atau seret file ke sini</p>
+            <p class="text-xs text-slate-400 mt-1 font-mono">Mendukung MP4, WEBM, MOV, AVI, MKV</p>
+          </div>
+        </div>
+
+        <div id="previewContainer" class="hidden relative z-30 space-y-4 text-left">
+          <div class="relative rounded-xl overflow-hidden bg-black border border-slate-700 aspect-video max-h-[360px] mx-auto flex items-center justify-center">
+            <video id="videoPreview" controls class="w-full h-full object-contain"></video>
+            <p id="previewFallbackText" class="hidden text-xs font-mono text-slate-400 px-4 text-center">
+              Pratinjau codec tidak didukung browser, file siap dipindai oleh backend.
+            </p>
+            <div id="hudOverlay" class="pointer-events-none absolute inset-0 border-2 border-cyan-500/30">
+              <div class="scanner-beam"></div>
+              <div class="absolute top-3 left-3 px-2 py-0.5 bg-slate-950/80 border border-cyan-500/40 rounded text-[10px] font-mono text-cyan-400">
+                HUD // MULTI_CROP_READY
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
+            <div class="truncate">
+              <p id="fileNameDisplay" class="text-sm font-medium text-white truncate">video.mp4</p>
+              <p id="fileMetaDisplay" class="text-xs font-mono text-slate-400">0.00 MB</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" id="toggleHudBtn" class="px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">HUD: ON</button>
+              <button type="button" id="changeFileBtn" class="px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 transition">Ganti Video</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="errorAlert" class="hidden p-4 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-sm">
+        <p class="font-semibold">Perhatian</p>
+        <p id="errorAlertText" class="text-xs text-rose-300 mt-1 font-mono"></p>
+      </div>
+
+      <div class="flex justify-center">
+        <button id="analyzeBtn" disabled class="w-full sm:w-auto px-8 py-3.5 rounded-xl font-semibold text-sm bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 shadow-lg shadow-cyan-500/20 transition-all">
+          Mulai Pemindaian Forensik AI
+        </button>
+      </div>
+    </section>
+
+    <!-- STAGE 2: LOADING -->
+    <section id="analysisScreen" class="hidden max-w-2xl mx-auto bg-slate-900/70 border border-slate-800 rounded-2xl p-8 space-y-6">
+      <div class="flex flex-col items-center text-center space-y-4">
+        <div class="relative w-20 h-20 flex items-center justify-center">
+          <div class="absolute inset-0 rounded-full border-2 border-cyan-500/40 radar-ring"></div>
+          <div class="w-14 h-14 rounded-full bg-cyan-500/10 border border-cyan-400 flex items-center justify-center text-cyan-400">
+            <svg class="w-7 h-7 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white">Memindai Pola Difusi & Morphing...</h3>
+          <p class="text-xs text-slate-400 mt-1">Menjalankan Swin Transformer Multi-Crop & Optical Flow</p>
+        </div>
+      </div>
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-emerald-400 h-44 overflow-y-auto space-y-1.5" id="terminalLog"></div>
+    </section>
+
+    <!-- STAGE 3: RESULT -->
+    <section id="resultScreen" class="hidden space-y-6">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <p class="text-xs font-mono text-slate-400 uppercase tracking-wider">Hasil Klasifikasi Forensik</p>
+            <div class="mt-2">
+              <span id="statusBadge" class="px-4 py-1.5 rounded-full font-bold text-xs font-mono tracking-wide border">
+                MENUNGGU HASIL
+              </span>
+            </div>
+          </div>
+
+          <div class="sm:text-right">
+            <p class="text-xs font-mono text-slate-400">Probabilitas Sintetis / AI</p>
+            <p id="aiPercentage" class="text-4xl sm:text-5xl font-bold font-mono text-white mt-1">0.0%</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-4">
+            <h4 class="text-sm font-semibold text-slate-200">Rincian Skor Lapisan Deteksi</h4>
+            
+            <div>
+              <div class="flex justify-between text-xs font-mono mb-1.5">
+                <span class="text-slate-400">Swin Transformer AI Detector (Bobot 72%)</span>
+                <span id="dlScoreText" class="text-cyan-400">0%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="dlBar" class="h-full bg-cyan-500 transition-all duration-700" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-mono mb-1.5">
+                <span class="text-slate-400">Optical Flow Object Morphing (Bobot 18%)</span>
+                <span id="morphScoreText" class="text-amber-400">0%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="morphBar" class="h-full bg-amber-500 transition-all duration-700" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-mono mb-1.5">
+                <span class="text-slate-400">Anomali Spektrum 2D FFT (Bobot 10%)</span>
+                <span id="fftScoreText" class="text-purple-400">0%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="fftBar" class="h-full bg-purple-500 transition-all duration-700" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-950/90 border border-slate-800 rounded-xl p-4 font-mono text-xs space-y-2.5">
+            <p class="text-slate-400 border-b border-slate-800 pb-2 font-semibold">TELEMETRI BACKEND</p>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Model Aktif:</span>
+              <span id="rawEngineVal" class="text-cyan-300 text-right truncate max-w-[190px]">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Total Sampled Frames:</span>
+              <span id="rawFramesVal" class="text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Laplacian Sharpness Var:</span>
+              <span id="rawBlurVal" class="text-slate-200">-</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Threshold Keputusan:</span>
+              <span class="text-cyan-400">&ge; 55.0% AI</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="verdictExplanation" class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300 leading-relaxed"></div>
+
+        <div class="flex flex-wrap items-center justify-end gap-3 pt-2">
+          <button id="downloadReportBtn" class="px-4 py-2.5 rounded-xl text-xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">Unduh Laporan (.JSON)</button>
+          <button id="resetBtn" class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition">Analisis Video Lain</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-slate-800/60 py-5 text-center text-xs text-slate-500 font-mono">
+    VeriSight AI v3 &bull; Ensemble Diffusion Detector + Optical Flow Forensics
+  </footer>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8000';
+    const API_URL = `${API_BASE}/api/scan-video`;
+
+    const setupScreen = document.getElementById('setupScreen');
+    const analysisScreen = document.getElementById('analysisScreen');
+    const resultScreen = document.getElementById('resultScreen');
+    const dropZone = document.getElementById('dropZone');
+    const videoInput = document.getElementById('videoInput');
+    const uploadPrompt = document.getElementById('uploadPrompt');
+    const previewContainer = document.getElementById('previewContainer');
+    const videoPreview = document.getElementById('videoPreview');
+    const previewFallbackText = document.getElementById('previewFallbackText');
+    const hudOverlay = document.getElementById('hudOverlay');
+    const toggleHudBtn = document.getElementById('toggleHudBtn');
+    const changeFileBtn = document.getElementById('changeFileBtn');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const fileMetaDisplay = document.getElementById('fileMetaDisplay');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const errorAlert = document.getElementById('errorAlert');
+    const errorAlertText = document.getElementById('errorAlertText');
+    const terminalLog = document.getElementById('terminalLog');
+    const resetBtn = document.getElementById('resetBtn');
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
+
+    let selectedFile = null;
+    let currentPreviewUrl = null;
+    let lastReportData = null;
+
+    async function checkBackendHealth() {
+      const apiDot = document.getElementById('apiDot');
+      const apiText = document.getElementById('apiStatusText');
+      try {
+        const res = await fetch(`${API_BASE}/openapi.json`);
+        if (res.ok) {
+          apiDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+          apiText.textContent = 'API ONLINE: 127.0.0.1:8000';
+          apiText.className = 'text-emerald-400';
+        }
+      } catch (_) {
+        apiDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+        apiText.textContent = 'API OFFLINE';
+        apiText.className = 'text-rose-400';
+      }
+    }
+    checkBackendHealth();
+
+    function handleFile(file) {
+      if (!file) return;
+      const isVideoMime = file.type && file.type.startsWith('video/');
+      const isVideoExt = /\.(mp4|webm|mov|avi|mkv|flv|wmv|m4v)$/i.test(file.name);
+      if (!isVideoMime && !isVideoExt) {
+        errorAlertText.textContent = `Format "${file.name}" tidak didukung.`;
+        errorAlert.classList.remove('hidden');
+        return;
+      }
+      errorAlert.classList.add('hidden');
+      selectedFile = file;
+      if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+      videoPreview.classList.remove('hidden');
+      previewFallbackText.classList.add('hidden');
+      currentPreviewUrl = URL.createObjectURL(file);
+      videoPreview.src = currentPreviewUrl;
+      videoPreview.onerror = () => {
+        videoPreview.classList.add('hidden');
+        previewFallbackText.classList.remove('hidden');
+      };
+      fileNameDisplay.textContent = file.name;
+      fileMetaDisplay.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB • ${file.type || 'video/raw'}`;
+      videoInput.classList.add('hidden');
+      uploadPrompt.classList.add('hidden');
+      previewContainer.classList.remove('hidden');
+      analyzeBtn.disabled = false;
+    }
+
+    videoInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+    changeFileBtn.addEventListener('click', () => {
+      videoInput.value = '';
+      videoInput.classList.remove('hidden');
+      videoInput.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropZone.classList.add('border-cyan-400', 'bg-slate-900');
+    }));
+    ['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('border-cyan-400', 'bg-slate-900');
+    }));
+    dropZone.addEventListener('drop', (e) => {
+      if (e.dataTransfer?.files?.[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    toggleHudBtn.addEventListener('click', () => {
+      const hidden = hudOverlay.classList.toggle('hidden');
+      toggleHudBtn.textContent = hidden ? 'HUD: OFF' : 'HUD: ON';
+    });
+
+    function addLog(msg, cls = 'text-emerald-400') {
+      const p = document.createElement('p');
+      p.className = cls;
+      p.textContent = `[${new Date().toLocaleTimeString('id-ID', { hour12: false })}] > ${msg}`;
+      terminalLog.appendChild(p);
+      terminalLog.scrollTop = terminalLog.scrollHeight;
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      errorAlert.classList.add('hidden');
+      setupScreen.classList.add('hidden');
+      resultScreen.classList.add('hidden');
+      analysisScreen.classList.remove('hidden');
+      terminalLog.innerHTML = '';
+
+      addLog(`Mengunggah "${selectedFile.name}" ke server forensik...`);
+      addLog('Menjalankan Multi-Crop Swin Transformer & Optical Flow...', 'text-cyan-400');
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch(API_URL, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        addLog(`Selesai memindai ${data.metrics.frames_analyzed} frame.`);
+        addLog(`Skor Swin AI: ${data.metrics.dl_vit_score}% | Morphing: ${data.metrics.morphing_score}%`, 'text-cyan-300');
+
+        lastReportData = { filename: selectedFile.name, analyzed_at: new Date().toISOString(), ...data };
+        setTimeout(() => renderResults(data), 400);
+      } catch (err) {
+        analysisScreen.classList.add('hidden');
+        setupScreen.classList.remove('hidden');
+        errorAlertText.textContent = `Gagal terhubung ke backend (${err.message}).`;
+        errorAlert.classList.remove('hidden');
+      }
+    });
+
+    function renderResults(data) {
+      analysisScreen.classList.add('hidden');
+      resultScreen.classList.remove('hidden');
+
+      const prob = data.fake_probability;
+      const m = data.metrics;
+      document.getElementById('aiPercentage').textContent = `${prob}%`;
+
+      const badge = document.getElementById('statusBadge');
+      const exp = document.getElementById('verdictExplanation');
+
+      if (data.is_fake) {
+        badge.textContent = 'TERDETEKSI: VIDEO AI-GENERATED / SINTETIS';
+        badge.className = 'px-4 py-1.5 rounded-full font-bold text-xs font-mono tracking-wide border bg-rose-950/80 text-rose-400 border-rose-500/60';
+        exp.innerHTML = `<strong class="text-rose-400">Kesimpulan Forensik:</strong> Video ini terdeteksi sebagai konten buatan AI (<strong>${prob}%</strong>). Model Swin Transformer menemukan pola generasi difusi sebesar <strong>${m.dl_vit_score}%</strong> disertai anomali morphing gerakan sebesar <strong>${m.morphing_score}%</strong>.`;
+      } else {
+        badge.textContent = 'AUTENTIK: VIDEO ASLI (REAL)';
+        badge.className = 'px-4 py-1.5 rounded-full font-bold text-xs font-mono tracking-wide border bg-emerald-950/80 text-emerald-400 border-emerald-500/60';
+        exp.innerHTML = `<strong class="text-emerald-400">Kesimpulan Forensik:</strong> Video ini memiliki karakteristik rekaman kamera alami dengan probabilitas sintetis rendah (<strong>${prob}%</strong>).`;
+      }
+
+      document.getElementById('dlScoreText').textContent = `${m.dl_vit_score}%`;
+      document.getElementById('dlBar').style.width = `${m.dl_vit_score}%`;
+
+      document.getElementById('morphScoreText').textContent = `${m.morphing_score}%`;
+      document.getElementById('morphBar').style.width = `${m.morphing_score}%`;
+
+      document.getElementById('fftScoreText').textContent = `${m.fft_spectral_score}%`;
+      document.getElementById('fftBar').style.width = `${m.fft_spectral_score}%`;
+
+      document.getElementById('rawEngineVal').textContent = m.engine;
+      document.getElementById('rawEngineVal').title = m.engine;
+      document.getElementById('rawFramesVal').textContent = `${m.frames_analyzed} frames`;
+      document.getElementById('rawBlurVal').textContent = m.blur_index;
+    }
+
+    downloadReportBtn.addEventListener('click', () => {
+      if (!lastReportData) return;
+      const blob = new Blob([JSON.stringify(lastReportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `forensic-report-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      selectedFile = null;
+      videoInput.value = '';
+      videoInput.classList.remove('hidden');
+      if (currentPreviewUrl) URL.revokeObjectURL(currentPreviewUrl);
+      videoPreview.src = '';
+      uploadPrompt.classList.remove('hidden');
+      previewContainer.classList.add('hidden');
+      analyzeBtn.disabled = true;
+      resultScreen.classList.add('hidden');
+      setupScreen.classList.remove('hidden');
+      checkBackendHealth();
+    });
+  </script>
+</body>
+</html>
